@@ -135,7 +135,8 @@ public class ApplicationExceptionMapperTest {
         // recorded at DEBUG instead
         verify(logger, atLeastOnce())
                 .debug(
-                        eq("Client disconnected before response was written. url: '{}', exception: {}"),
+                        eq(
+                                "Client disconnected before response was written. url: '{}', exception: {}"),
                         eq("/api/queue/update/workflowId/taskRefName/SKIPPED"),
                         eq("AsyncRequestNotUsableException"));
     }
