@@ -29,6 +29,7 @@ import org.springframework.web.bind.annotation.RestController;
 import com.netflix.conductor.common.metadata.tasks.TaskDef;
 import com.netflix.conductor.common.metadata.workflow.WorkflowClassifier;
 import com.netflix.conductor.common.metadata.workflow.WorkflowDef;
+import com.netflix.conductor.common.metadata.workflow.WorkflowDefListItem;
 import com.netflix.conductor.common.metadata.workflow.WorkflowDefSummary;
 import com.netflix.conductor.common.model.BulkResponse;
 import com.netflix.conductor.core.exception.ConflictException;
@@ -133,6 +134,14 @@ public class MetadataResource {
     @GetMapping("/workflow/latest-versions")
     public List<WorkflowDef> getAllWorkflowsWithLatestVersions() {
         return metadataService.getWorkflowDefsLatestVersions();
+    }
+
+    @Operation(
+            summary =
+                    "Returns a lightweight list projection (latest version per workflow, no task blueprints)")
+    @GetMapping("/workflow/list")
+    public List<WorkflowDefListItem> getWorkflowListItems() {
+        return metadataService.getWorkflowDefListItems();
     }
 
     @DeleteMapping("/workflow/{name}/{version}")
