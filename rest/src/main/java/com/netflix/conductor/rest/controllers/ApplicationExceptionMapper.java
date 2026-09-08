@@ -24,6 +24,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.context.request.async.AsyncRequestNotUsableException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import com.netflix.conductor.common.validation.ErrorResponse;
@@ -58,6 +59,21 @@ public class ApplicationExceptionMapper {
         EXCEPTION_STATUS_MAP.put(AccessForbiddenException.class, HttpStatus.FORBIDDEN);
         EXCEPTION_STATUS_MAP.put(
                 HttpRequestMethodNotSupportedException.class, HttpStatus.METHOD_NOT_ALLOWED);
+    }
+
+    /**
+     * A client disconnect (broken pipe) during response serialization surfaces as
+     * AsyncRequestNotUsableException. The response can no longer be written, so we must NOT attempt
+     * to serialize an error body (that would trigger a second broken-pipe write) and must NOT count
+     * it as a Conductor 5xx business error. We only record it quietly for diagnostics.
+     */
+    @ExceptionHandler(AsyncRequestNotUsableException.class)
+    public void handleClientDisconnect(
+            HttpServletRequest request, AsyncRequestNotUsableException ex) {
+        LOGGER.debug(
+                "Client disconnected before response was written. url: '{}', exception: {}",
+                request.getRequestURI(),
+                ex.getClass().getSimpleName());
     }
 
     @ExceptionHandler(Throwable.class)
