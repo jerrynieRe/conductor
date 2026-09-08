@@ -406,6 +406,7 @@ public class PostgresMetadataDAOTest {
         def.setVersion(3);
         def.setCreateTime(4200L);
         def.setInputParameters(java.util.List.of("p1", "p2"));
+        def.setFailureWorkflow("cleanup_flow");
         java.util.Map<String, Object> out = new java.util.HashMap<>();
         out.put("res", "${t.output.x}");
         def.setOutputParameters(out);
@@ -417,6 +418,14 @@ public class PostgresMetadataDAOTest {
         other.setCreateTime(1L);
         other.setTasks(java.util.List.of(ta));
         metadataDAO.createWorkflowDef(other);
+
+        WorkflowDef agent = new WorkflowDef();
+        agent.setName("listAgent");
+        agent.setVersion(1);
+        agent.setCreateTime(1L);
+        agent.setTasks(java.util.List.of(ta));
+        agent.setMetadata(java.util.Map.of("agent_sdk", "x"));
+        metadataDAO.createWorkflowDef(agent);
 
         List<WorkflowDefListItem> items = metadataDAO.getWorkflowDefListItems();
 
@@ -435,6 +444,14 @@ public class PostgresMetadataDAOTest {
         assertEquals(Long.valueOf(4200L), a.getCreateTime());
         assertEquals(java.util.List.of("p1", "p2"), a.getInputParameters());
         assertEquals("${t.output.x}", a.getOutputParameters().get("res"));
+        // failureWorkflow projected from json_data
+        assertEquals("cleanup_flow", a.getFailureWorkflow());
+        // plain (untagged) defs resolve to the "workflow" classifier
+        assertEquals("workflow", a.getClassifier());
+        assertEquals("workflow", byName.get("listB").getClassifier());
+        // agent-stamped metadata resolves to the "agent" classifier
+        assertTrue(byName.containsKey("listAgent"));
+        assertEquals("agent", byName.get("listAgent").getClassifier());
     }
 
     @Test

@@ -26,6 +26,7 @@ import org.springframework.retry.support.RetryTemplate;
 
 import com.netflix.conductor.common.metadata.events.EventHandler;
 import com.netflix.conductor.common.metadata.tasks.TaskDef;
+import com.netflix.conductor.common.metadata.workflow.WorkflowClassifier;
 import com.netflix.conductor.common.metadata.workflow.WorkflowDef;
 import com.netflix.conductor.common.metadata.workflow.WorkflowDefListItem;
 import com.netflix.conductor.common.metadata.workflow.WorkflowDefSummary;
@@ -253,6 +254,8 @@ public class PostgresMetadataDAO extends PostgresBaseDAO implements MetadataDAO,
                         + "  wd.jd ->> 'outputParameters'                  AS output_parameters, "
                         + "  wd.jd ->> 'timeoutPolicy'                     AS timeout_policy, "
                         + "  COALESCE((wd.jd ->> 'timeoutSeconds')::bigint, 0) AS timeout_seconds, "
+                        + "  wd.jd ->> 'failureWorkflow'                   AS failure_workflow, "
+                        + "  wd.jd ->> 'metadata'                          AS metadata_json, "
                         + "  COALESCE(jsonb_array_length(wd.jd -> 'tasks'), 0) AS task_count, "
                         + "  ( SELECT string_agg(DISTINCT t ->> 'type', ',') "
                         + "    FROM jsonb_array_elements(wd.jd -> 'tasks') AS t ) AS task_types "
@@ -304,6 +307,22 @@ public class PostgresMetadataDAO extends PostgresBaseDAO implements MetadataDAO,
                                                     WorkflowDef.TimeoutPolicy.valueOf(tp));
                                         }
                                         item.setTimeoutSeconds(rs.getLong("timeout_seconds"));
+                                        item.setFailureWorkflow(
+                                                rs.getString("failure_workflow"));
+                                        String metadataJson = rs.getString("metadata_json");
+                                        if (metadataJson != null && !metadataJson.isBlank()) {
+                                            Map<String, Object> metadata =
+                                                    readValue(
+                                                            metadataJson,
+                                                            new TypeReference<
+                                                                    Map<String, Object>>() {});
+                                            item.setClassifier(
+                                                    WorkflowClassifier.classifierOf(metadata));
+                                        } else {
+                                            item.setClassifier(
+                                                    WorkflowClassifier.classifierOf(
+                                                            (Map<String, Object>) null));
+                                        }
                                         item.setTaskCount(rs.getInt("task_count"));
                                         String types = rs.getString("task_types");
                                         Set<String> typeSet = new LinkedHashSet<>();

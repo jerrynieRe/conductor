@@ -44,6 +44,7 @@ public class WorkflowDefListItemTest {
         def.setOutputParameters(Map.of("out1", "v"));
         def.setTimeoutPolicy(WorkflowDef.TimeoutPolicy.TIME_OUT_WF);
         def.setTimeoutSeconds(60L);
+        def.setFailureWorkflow("failFlow");
         def.setTasks(List.of(t1, t2, t3));
 
         WorkflowDefListItem item = WorkflowDefListItem.fromWorkflowDef(def);
@@ -64,6 +65,21 @@ public class WorkflowDefListItemTest {
         assertTrue(item.getTaskTypes().contains("SIMPLE"));
         assertTrue(item.getTaskTypes().contains("HTTP"));
         assertEquals(3, item.getTaskCount());
+        assertEquals("failFlow", item.getFailureWorkflow());
+        // no metadata on this def -> plain workflow classifier
+        assertEquals("workflow", item.getClassifier());
+    }
+
+    @Test
+    public void fromWorkflowDefDerivesAgentClassifierFromMetadata() {
+        WorkflowDef def = new WorkflowDef();
+        def.setName("agent_flow");
+        def.setVersion(1);
+        def.setMetadata(Map.of("agent_sdk", "x"));
+
+        WorkflowDefListItem item = WorkflowDefListItem.fromWorkflowDef(def);
+
+        assertEquals("agent", item.getClassifier());
     }
 
     @Test

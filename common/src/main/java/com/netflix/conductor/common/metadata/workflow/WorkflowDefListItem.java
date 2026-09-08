@@ -61,6 +61,10 @@ public class WorkflowDefListItem {
 
     private int taskCount;
 
+    private String failureWorkflow;
+
+    private String classifier;
+
     public static WorkflowDefListItem fromWorkflowDef(WorkflowDef def) {
         WorkflowDefListItem item = new WorkflowDefListItem();
         item.setName(def.getName());
@@ -75,6 +79,8 @@ public class WorkflowDefListItem {
         item.setOutputParameters(def.getOutputParameters());
         item.setTimeoutPolicy(def.getTimeoutPolicy());
         item.setTimeoutSeconds(def.getTimeoutSeconds());
+        item.setFailureWorkflow(def.getFailureWorkflow());
+        item.setClassifier(WorkflowClassifier.classifierOf(def));
 
         List<WorkflowTask> tasks = def.getTasks();
         Set<String> taskTypes = new LinkedHashSet<>();
@@ -203,5 +209,21 @@ public class WorkflowDefListItem {
 
     public void setTaskCount(int taskCount) {
         this.taskCount = taskCount;
+    }
+
+    public String getFailureWorkflow() {
+        return failureWorkflow;
+    }
+
+    public void setFailureWorkflow(String failureWorkflow) {
+        this.failureWorkflow = failureWorkflow;
+    }
+
+    public String getClassifier() {
+        return classifier;
+    }
+
+    public void setClassifier(String classifier) {
+        this.classifier = classifier;
     }
 }

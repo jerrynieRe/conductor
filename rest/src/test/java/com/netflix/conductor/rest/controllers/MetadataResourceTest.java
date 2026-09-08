@@ -176,11 +176,30 @@ public class MetadataResourceTest {
         item.setVersion(3);
         when(mockMetadataService.getWorkflowDefListItems()).thenReturn(List.of(item));
 
-        List<WorkflowDefListItem> result = metadataResource.getWorkflowListItems();
+        List<WorkflowDefListItem> result = metadataResource.getWorkflowListItems(null);
 
         assertEquals(1, result.size());
         assertEquals("wf", result.get(0).getName());
         verify(mockMetadataService, times(1)).getWorkflowDefListItems();
+    }
+
+    @Test
+    public void testGetWorkflowListItemsFiltersByClassifier() {
+        WorkflowDefListItem workflowItem = new WorkflowDefListItem();
+        workflowItem.setName("plain");
+        workflowItem.setClassifier("workflow");
+        WorkflowDefListItem agentItem = new WorkflowDefListItem();
+        agentItem.setName("bot");
+        agentItem.setClassifier("agent");
+        when(mockMetadataService.getWorkflowDefListItems())
+                .thenReturn(List.of(workflowItem, agentItem));
+
+        List<WorkflowDefListItem> filtered = metadataResource.getWorkflowListItems("workflow");
+        assertEquals(1, filtered.size());
+        assertEquals("plain", filtered.get(0).getName());
+
+        List<WorkflowDefListItem> all = metadataResource.getWorkflowListItems(null);
+        assertEquals(2, all.size());
     }
 
     @Test

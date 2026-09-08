@@ -138,10 +138,21 @@ public class MetadataResource {
 
     @Operation(
             summary =
-                    "Returns a lightweight list projection (latest version per workflow, no task blueprints)")
+                    "Returns a lightweight list projection (latest version per workflow, no task blueprints), optionally filtered by classifier")
     @GetMapping("/workflow/list")
-    public List<WorkflowDefListItem> getWorkflowListItems() {
-        return metadataService.getWorkflowDefListItems();
+    public List<WorkflowDefListItem> getWorkflowListItems(
+            @RequestParam(value = "classifier", required = false) String classifier) {
+        List<WorkflowDefListItem> all = metadataService.getWorkflowDefListItems();
+        // Optional classifier filter mirroring getAll: "workflow" matches untagged (plain)
+        // defs; any other value matches the derived tag literally. Uses the classifier
+        // precomputed on each item rather than recomputing it here.
+        if (classifier == null || classifier.isBlank()) {
+            return all;
+        }
+        String wanted = classifier.trim();
+        return all.stream()
+                .filter(item -> wanted.equalsIgnoreCase(item.getClassifier()))
+                .toList();
     }
 
     @DeleteMapping("/workflow/{name}/{version}")
