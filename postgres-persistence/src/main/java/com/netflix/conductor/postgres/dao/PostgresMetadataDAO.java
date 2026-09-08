@@ -26,6 +26,7 @@ import org.springframework.retry.support.RetryTemplate;
 import com.netflix.conductor.common.metadata.events.EventHandler;
 import com.netflix.conductor.common.metadata.tasks.TaskDef;
 import com.netflix.conductor.common.metadata.workflow.WorkflowDef;
+import com.netflix.conductor.common.metadata.workflow.WorkflowDefListItem;
 import com.netflix.conductor.common.metadata.workflow.WorkflowDefSummary;
 import com.netflix.conductor.core.exception.ConflictException;
 import com.netflix.conductor.core.exception.NotFoundException;
@@ -35,6 +36,7 @@ import com.netflix.conductor.metrics.Monitors;
 import com.netflix.conductor.postgres.config.PostgresProperties;
 import com.netflix.conductor.postgres.util.ExecutorsUtil;
 
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.base.Preconditions;
 import jakarta.annotation.*;
@@ -227,6 +229,93 @@ public class PostgresMetadataDAO extends PostgresBaseDAO implements MetadataDAO,
         return queryWithTransaction(
                 GET_ALL_WORKFLOW_DEF_LATEST_VERSIONS_QUERY,
                 q -> q.executeAndFetch(WorkflowDef.class));
+    }
+
+    @Override
+    public List<WorkflowDefListItem> getWorkflowDefListItems() {
+        // json_data is a TEXT column (V1__initial_schema.sql), so cast to jsonb before
+        // applying JSON operators — mirrors the ::json idiom in V10 migration. Using jsonb
+        // (not json) is required for jsonb_array_length / jsonb_array_elements.
+        final String QUERY =
+                "SELECT "
+                        + "  wd.jd ->> 'name'                              AS name, "
+                        + "  wd.jd ->> 'description'                       AS description, "
+                        + "  (wd.jd ->> 'version')::int                    AS version, "
+                        + "  COALESCE((wd.jd ->> 'createTime')::bigint, 0) AS create_time, "
+                        + "  COALESCE((wd.jd ->> 'schemaVersion')::int, 2) AS schema_version, "
+                        + "  COALESCE((wd.jd ->> 'restartable')::boolean, false) AS restartable, "
+                        + "  COALESCE((wd.jd ->> 'workflowStatusListenerEnabled')::boolean, false) AS wsl_enabled, "
+                        + "  wd.jd ->> 'ownerEmail'                        AS owner_email, "
+                        + "  wd.jd ->> 'inputParameters'                   AS input_parameters, "
+                        + "  wd.jd ->> 'outputParameters'                  AS output_parameters, "
+                        + "  wd.jd ->> 'timeoutPolicy'                     AS timeout_policy, "
+                        + "  COALESCE((wd.jd ->> 'timeoutSeconds')::bigint, 0) AS timeout_seconds, "
+                        + "  COALESCE(jsonb_array_length(wd.jd -> 'tasks'), 0) AS task_count, "
+                        + "  ( SELECT string_agg(DISTINCT t ->> 'type', ',') "
+                        + "    FROM jsonb_array_elements(wd.jd -> 'tasks') AS t ) AS task_types "
+                        + "FROM ( SELECT json_data::jsonb AS jd, name, version "
+                        + "       FROM meta_workflow_def ) wd "
+                        + "WHERE wd.version = ( SELECT MAX(version) FROM meta_workflow_def wd2 "
+                        + "                     WHERE wd2.name = wd.name ) "
+                        + "ORDER BY name";
+
+        return queryWithTransaction(
+                QUERY,
+                q ->
+                        q.executeAndFetch(
+                                rs -> {
+                                    List<WorkflowDefListItem> items = new ArrayList<>();
+                                    while (rs.next()) {
+                                        WorkflowDefListItem item = new WorkflowDefListItem();
+                                        item.setName(rs.getString("name"));
+                                        item.setDescription(rs.getString("description"));
+                                        item.setVersion(rs.getInt("version"));
+                                        // createTime comes from json_data (Auditable value),
+                                        // not the server-side created_on column, to stay
+                                        // consistent with the full WorkflowDef. getLong returns
+                                        // 0 for SQL NULL, matching Auditable semantics.
+                                        item.setCreateTime(rs.getLong("create_time"));
+                                        item.setSchemaVersion(rs.getInt("schema_version"));
+                                        item.setRestartable(rs.getBoolean("restartable"));
+                                        item.setWorkflowStatusListenerEnabled(
+                                                rs.getBoolean("wsl_enabled"));
+                                        item.setOwnerEmail(rs.getString("owner_email"));
+                                        String inputParams = rs.getString("input_parameters");
+                                        if (inputParams != null && !inputParams.isEmpty()) {
+                                            item.setInputParameters(
+                                                    readValue(
+                                                            inputParams,
+                                                            new TypeReference<List<String>>() {}));
+                                        }
+                                        String outputParams = rs.getString("output_parameters");
+                                        if (outputParams != null && !outputParams.isEmpty()) {
+                                            item.setOutputParameters(
+                                                    readValue(
+                                                            outputParams,
+                                                            new TypeReference<
+                                                                    Map<String, Object>>() {}));
+                                        }
+                                        String tp = rs.getString("timeout_policy");
+                                        if (tp != null) {
+                                            item.setTimeoutPolicy(
+                                                    WorkflowDef.TimeoutPolicy.valueOf(tp));
+                                        }
+                                        item.setTimeoutSeconds(rs.getLong("timeout_seconds"));
+                                        item.setTaskCount(rs.getInt("task_count"));
+                                        String types = rs.getString("task_types");
+                                        Set<String> typeSet = new LinkedHashSet<>();
+                                        if (types != null && !types.isEmpty()) {
+                                            for (String t : types.split(",")) {
+                                                if (!t.isEmpty()) {
+                                                    typeSet.add(t);
+                                                }
+                                            }
+                                        }
+                                        item.setTaskTypes(typeSet);
+                                        items.add(item);
+                                    }
+                                    return items;
+                                }));
     }
 
     public List<WorkflowDef> getAllLatest() {
